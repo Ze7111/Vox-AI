@@ -1,0 +1,27 @@
+# Xcode
+.DS_Store
+build/
+DerivedData/
+xcuserdata/
+
+# Swift Package Manager
+.build/
+
+# CocoaPods
+Pods/
+Podfile.lock
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyz
+*.pyw
+*.pyi
+*.pyinstaller/
+*.pyproj/
+*.pydevproject/
+*.egg-info/
+dist/
+build/
