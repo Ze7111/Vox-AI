@@ -24,4 +24,6 @@ __pycache__/
 *.pydevproject/
 *.egg-info/
 dist/
+.venv/
+.mypy_cache/
 build/

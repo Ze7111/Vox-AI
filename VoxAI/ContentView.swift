@@ -10,11 +10,16 @@ import RealityKit
 import ARKit
 import Combine
 
-struct ContentView : View {
+struct ContentView: View {
+    @State private var showARView = false
+
     var body: some View {
-        ARViewContainer().edgesIgnoringSafeArea(.all)
+        if showARView {
+            ARViewContainer().edgesIgnoringSafeArea(.all)
+        } else {
+            LoginPage(showARView: $showARView)
+        }
     }
-    
 }
 
 struct ARViewContainer: UIViewRepresentable {
@@ -106,7 +111,7 @@ class CustomARView: ARView {
             self.scene.addAnchor(planeAnchor)
             print("auto")
         } else {
-            // If no anchor is associated with the raycast result, create a manual anchor at the position
+            // If no anchor is associated with the ra=ycast result, create a manual anchor at the position
             let manualAnchor = AnchorEntity(world: raycastResult.worldTransform)
             manualAnchor.addChild(model)
             self.scene.addAnchor(manualAnchor)
