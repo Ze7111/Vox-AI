@@ -117,11 +117,11 @@ struct LoginPage: View {
                     .background {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
                             .stroke(.clear.opacity(0.25), lineWidth: 0)
-                            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.yellow.opacity(0.15)))
+                            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.red.opacity(0.15)))
                     }
                 }
 
-                Text("Don’t know what to do?")
+                Text("Don't know what to do?")
                     .padding(.top)
                     .foregroundStyle(Color(.tertiaryLabel))
                     .font(.subheadline)

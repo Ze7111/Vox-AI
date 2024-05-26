@@ -1,0 +1,7 @@
+huggingface_hub
+tqdm
+pillow
+transformers
+torch
+pydantic
+rich
