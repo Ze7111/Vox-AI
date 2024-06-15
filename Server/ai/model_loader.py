@@ -1,250 +1,386 @@
 # ------------------------------------------------- regular imports -------------------------------------------------- #
 
-import os
 import gc
-from types import FrameType
-import torch
-import signal
+import os
 import threading
+from concurrent.futures import TimeoutError
+from pathlib import Path
+from typing import Iterator, Optional, Union
 
-from tqdm               import tqdm
-from PIL                import Image
-from typing             import Callable, Optional, Union
-from transformers       import AutoProcessor, AutoModelForCausalLM                                         # type:ignore
+from llama_cpp import (ChatCompletionStreamResponseChoice,
+                       CreateChatCompletionResponse,
+                       CreateChatCompletionStreamResponse)
+from llama_cpp.llama_chat_format import (Llava15ChatHandler,
+                                         MoondreamChatHandler)
+from llama_cpp.llama_speculative import LlamaPromptLookupDecoding
+
+try: from llama_cpp              import CreateCompletionResponse, Llama
+except ImportError: pass
+
+# -------------------------------------------------- local imports --------------------------------------------------- #
+
+import logging
+
+from .context import ChatContext  # type:ignore
+from .pydantic_structures import (BaseChatConfig, ChatRequest,  # type:ignore
+                                  ChatResponse)
 
 # -------------------------------------------------- set up logging -------------------------------------------------- #
 
-import  logging
 logger: logging.Logger = logging.getLogger("rich")
 
 # ----------------------------------------------------- AI ----------------------------------------------------------- #
 
-class SigintHandler: # ............................................................................................... #
-    _instance: Optional["SigintHandler"] = None
+class ModelNotFoundError(Exception):
+    pass
 
-    def __new__(cls, ignore_msg: str = "") -> 'SigintHandler': # ..................................................... #
-        if cls._instance is None:
-            cls._instance               = super(SigintHandler, cls).__new__(cls)
-            cls._instance.__initialized = False                                                            # type:ignore
+class ModelFailedToLoad(Exception):
+    pass
 
-        return cls._instance #                                                                                  return #
-    # end ........................................ SigintHandler .......................................... -> __new__ #
+class ModelTypeNotSupported(Exception):
+    pass
 
-    def __init__(self, ignore_msg: str = "") -> None: # ...................................................................... #
-        if self.__initialized:                                                                             # type:ignore
-            return #                                                                                              return
+class ModelTookTooLongToLoad(Exception):
+    pass
 
-        if threading.current_thread() is not threading.main_thread():
-            raise RuntimeError("'SigintHandler' MUST be in the main thread")
+# -------------------------------------------------- LoadModel ------------------------------------------------------- #
 
-        self.__base_sigint = signal.getsignal(signal.SIGINT)
-        self.__recv        = False
-        self.__ignore_msg  = ignore_msg
-        self.__initialized = True
-    # end ........................................ SigintHandler ......................................... -> __init__ #
+class Hub:
+    def __init__(self, repo_id: str, file_name: str = "q4_1.gguf", clip_name: str = "*mmproj*") -> None:
+        self.model_name: str = repo_id
+        self.file_name: str = file_name
+        self.clip_name: str = clip_name
+    # end                                                                                                     __init__ #
 
-    def sigint_handle(self, *_: Union[int, Callable[[int, FrameType | None], None]]) -> None: # ...................... #
-        logger.warning(f"SIGINT received, ignored. {self.__ignore_msg}")
-        self.__recv = True
-    # end ........................................ SigintHandler .................................... -> sigint_handle #
+class Model:
 
-    def __enter__(self) -> Callable[[], bool]: # ..................................................................... #
-        signal.signal(signal.SIGINT, self.sigint_handle)                                                   # type:ignore
-        return self.sigint_received #                                                                           return #
-    # end ........................................ SigintHandler ........................................ -> __enter__ #
+    """ this class will contain the high-level managed api for the following:
+            - loading the model
+            - chat
+            - unloading the model
 
-    def __exit__(self, *_: tuple) -> None: # ......................................................................... #
-        signal.signal(signal.SIGINT, self.__base_sigint)
-    # end ........................................ SigintHandler ......................................... -> __exit__ #
+        the model will be loaded in the __init__ function and unloaded
+        in the__del__ function
 
-    def sigint_received(self): # ..................................................................................... #
-        return self.__recv     #                                                                                return #
-    # end ........................................ SigintHandler .................................. -> sigint_received #
-# end .................................................................................................. SigintHandler #
+        ------------------------------------------------------------------------
+        ```python
+        from pathlib import Path
 
-# -------------------------------------------------------------------------------------------------------------------- #
+        model = Model(Path("..", "Bunny-Llama-3-8B-V-gguf"), ChatConfig(...))
+        # or
+        model = Model(Hub("BAAI/Bunny-Llama-3-8B-V-gguf"),   ChatConfig(...))
 
-class GITImageProcessor: # ........................................................................................... #
-    processor:    Optional[AutoProcessor]        = None
-    model:        Optional[AutoModelForCausalLM] = None
-    device:       Optional[str]                  = None
+        response: ChatResponse = model.predict(request=ChatRequest(...))
 
-    def __init__(self) -> None: # .................................................................................... #
-        with SigintHandler("attempting to shut down model and pre-processor loading") as siR:
-            self.__check_sigint:        Callable[[], bool] = siR                             # sigint received checker
-            self.__processor_cache_dir: str                = "models/git-large-coco"
-            self.__model_cache_dir:     str                = "models/git-large-coco-model"
-            self.__processor_file_path: str                = os.path.join(self.__processor_cache_dir, "processor.pt")
-            self.__model_file_path:     str                = os.path.join(self.__model_cache_dir    , "model.pt")
+        # process a batch of requests asynchronously (if possible)
+        batch_response: list[ChatResponse] = model.predict_batch(requests=[ChatRequest(...), ...])
 
-            threading.Thread(target=self.__load_all).start()
-    # end ........................................ GITImageProcessor ..................................... -> __init__ #
+        print(response.text)
 
-    # ---------------------------------------------------------------------------------------------------------------- #
+        for response in batch_response:
+            print(response.text)
+        ```
+        ------------------------------------------------------------------------
 
-    def __check(self, message: str) -> None: # ....................................................................... #
-        if self.__check_sigint() : # if SIGINT received
-            self.shutdown(message)
-            raise KeyboardInterrupt(message)
-    # end ........................................ GITImageProcessor ...................................... -> __check #
+        Args:
+            pretrained (Path|str): the model either a huggingface model (str)
+                                   or a path to a model (Path)
 
-    # ---------------------------------------------------------------------------------------------------------------- #
+            config (ChatConfig): the config struct to use. can also be passed
+                                 with the predict function for a one-off config
 
-    def __load_processor(self) -> None: # ............................................................................ #
-        if os.path.exists(self.__processor_file_path):
-            logger.debug("attempting to load pre-processor from local cache")
-            GITImageProcessor.processor = torch.load(self.__processor_file_path)
-            logger.info("pre-processor loaded from local cache")
+            image_processor_path (Optional[Path]): the path to the image processor
+                                                    default is None
+
+            timeout (Optional[int]): the time to wait for the model to load in
+                                     seconds default is -1 (wait indefinitely)
+
+        Raises:
+            NotImplementedError:    incase a function is not implemented
+            ModelNotFoundError:     if the model is not found
+            ModelFailedToLoad:      if the model failed to load
+            ModelTypeNotSupported:  if the model type is not supported
+            ModelTookTooLongToLoad: if the model took too long to load
+    """
+
+    # ----------------------------------------------- public functions ----------------------------------------------- #
+
+    def __init__(self,
+                 pretrained: Path | Hub,
+                 config: BaseChatConfig,
+                 /,
+                 image_processor_path: Optional[Path] = None,
+                 multi_model: Optional[bool] = False, # this is to not check for clip in pretrained
+                 timeout: Optional[int] = -1) -> None:
+
+        self.__model_name: str = ""
+        self.__is_hub: bool = False
+
+        self.__clip_model_path: Optional[Llava15ChatHandler] = None
+        self.__clip_path:       Optional[str]                = None
+        self.__context:         ChatContext                  = ChatContext()
+
+        if isinstance(pretrained, Hub):
+            self.__is_hub = True
+            self.__file_name: str = pretrained.file_name
+            self.__model_name = pretrained.model_name
+
+            if multi_model:
+                self.__clip_model_path = None
+                self.__clip_path = pretrained.clip_name
+
+        elif isinstance(pretrained, Path):
+            # set the path to the complete absolute path
+            self.__model_name = str(pretrained.absolute())
+            logger.info(f"Loading model: {self.__model_name}")
+
+            if not os.path.exists(self.__model_name):
+                raise ModelNotFoundError(f"Model not found: {self.__model_name}")
+
+            if image_processor_path is not None:
+                self.__clip_model_path = None
+                self.__clip_path       = str(image_processor_path)
+
         else:
-            os.makedirs(self.__processor_cache_dir, exist_ok=True)
+            raise ModelNotFoundError(f"Model not found: {pretrained}")
 
-            logger. warning("pre-processor not found in local cache, downloading from Hugging Face")
-            GITImageProcessor.processor = AutoProcessor.from_pretrained("microsoft/git-large-coco")
+        self.__config:    BaseChatConfig  = config
+        self.__multi_model:     bool  = True if self.__clip_path is not None else False
+        self.__timeout:          int  = timeout if timeout is not None else -1
+        self.__is_model_loaded: bool  = True
+        self.__model: Optional[Llama] = None
 
-            logger.debug("saving pre-processor to local cache")
-            torch. save(GITImageProcessor.processor, self.__processor_file_path)
-            logger.info("saved pre-processor.")
-
+        # create a new thread to load the model asynchronously with concurrent.futures
+        logger.info("starting model load")
+        # wait asynchronously for the model to load
         try:
-            self.__check("SIGINT received, shutting down pre-processor...")
-        except KeyboardInterrupt:
-            return #                                                                                            return #
-    # end ........................................ GITImageProcessor ............................. -> __load_processor #
+            self.__loaded_model = threading.Thread(target=self._load_model,
+                                            daemon=True,
+                                            name="load_model_thread")
+            self.__loaded_model.start()
+            logger.info("model load started")
+        except TimeoutError:
+            raise ModelTookTooLongToLoad(f"Model took too long to load: {self.__model_name}")
 
-    def __load_model(self) -> None: # ................................................................................ #
-        if os.path.exists(self.__model_file_path):
-            logger.debug("attempting to load model from local cache")
-            GITImageProcessor.model = torch.load(self.__model_file_path)
-            logger.info("model loaded from local cache")
-        else:
-            os.makedirs(self.__model_cache_dir, exist_ok=True)
-
-            logger. warning("model not found in local cache, downloading from Hugging Face")
-            GITImageProcessor.model = AutoModelForCausalLM.from_pretrained("microsoft/git-large-coco")
-
-            logger.debug("saving model to local cache")
-            torch.save(GITImageProcessor.model, self.__model_file_path)
-            logger.info("saved model.")
-
-        try:
-            self.__check("SIGINT received, shutting down model...")
-        except KeyboardInterrupt:
-            return #                                                                                            return #
-    # end ........................................ GITImageProcessor ................................. -> __load_model #
-
-    # ---------------------------------------------------------------------------------------------------------------- #
-
-    def __load_all(self) -> None: # ............................................................................ ASYNC #
-        # ------------------------------------------------------------------------------------------------------------ #
-
-        logger.info("loading model and pre-processor")
-
-        # ------------------------------------------------------------------------------------------------------------ #
-
-        try:
-            self.__load_processor()
         except Exception as e:
-            logger.error(f"failed to load model: {e}")
+            raise ModelFailedToLoad(f"Model failed to load: {self.__model_name} -> {e}")
 
-        # ------------------------------------------------------------------------------------------------------------ #
+        finally:
+            logger.info("starting garbage collection")
+            gc.collect() # collect garbage to free up memory
+            logger.info("garbage collection done")
 
-        try:
-            self.__load_model()
-        except Exception as e:
-            logger.error(f"failed to load model: {e}")
-            self.shutdown("failed to load model, shutting down...")
-            return #                                                                                            return #
+    # end                                                                                                     __init__ #
 
-        # ------------------------------------------------------------------------------------------------------------ #
+    def __del__(self) -> None:
+        self._unload_model()
+    # end                                                                                                      __del__ #
 
-        GITImageProcessor.device = "cuda" if torch.cuda.is_available() else "cpu" # set device to cuda if available
+    def predict(self, request: ChatRequest) -> Iterator[ChatResponse]:
+        """ Generates predictions based on the given chat request using the loaded model.
+            Yields chat responses as they are generated.
 
-        if GITImageProcessor.model is not None:
-            GITImageProcessor.model.to(GITImageProcessor.device)
+            Args:
+                request (ChatRequest): The chat request containing text and images.
 
-        try:
-            self.__check(f"SIGINT received, stopping model from moving to '{GITImageProcessor.device}'...")
-        except KeyboardInterrupt:
-            return #                                                                                            return #
+            Returns:
+                Iterator[ChatResponse]: An iterator of chat responses in web compatible format.
 
-        # ------------------------------------------------------------------------------------------------------------ #
+            Raises:
+                ModelFailedToLoad: If the model did not start loading or is unloaded.
+                ModelTookTooLongToLoad: If the model took too long to load.
+        """
+        logger.info("Predicting")
 
-        logger.info("model and pre-processor loaded")
-    # end ........................................ GITImageProcessor ................................... -> __load_all #
+        if self.__model is None:
+            # threading.Thread(target=self.__loaded_model.join, daemon=True, kwargs={"timeout": self.__timeout if self.__timeout > 0 else None}).start()
+            logger.warning("Waiting for model to load")
 
-    # ---------------------------------------------------------------------------------------------------------------- #
+        if self.__is_model_loaded is False:
+            raise ModelFailedToLoad("Model did not start loading or is unloaded")
 
-    def __generate_caption(self, img: str) -> str: # ................................................................. #
-        logger.warning("waiting for model and pre-processor to load") if (
-               GITImageProcessor.processor is None
-            or GITImageProcessor.model     is None
-            or GITImageProcessor.device    is None
-        ) else (
-            logger.info("model and pre-processor loaded")
+        # time_counter: int = 0
+        while self.__model is None:
+            # time.sleep(1)
+            # time_counter += 1
+            #
+            # if time_counter >= self.__timeout: # and self.__timeout > 0:
+            #    self.__loaded_model.join(timeout=0.1)
+            #    raise ModelTookTooLongToLoad("Model took too long to load")
+            # FIXME this causes a segfault
+            pass
+
+        if self.__model is None:
+            raise ModelFailedToLoad("Model failed to load")
+
+        partial_response: dict[str, Union[str, int, list[dict[str, str | dict[str, str]]]]] = {
+            "content": "",
+        }
+
+        self.__context.append(
+            text=request.text,
+            base64_images=[
+                f"{img_data.img_id}|data:image/png;base64,{img_data.base64_img}"
+                for img_data in request.images
+            ] if request.images else None
         )
+        
+        stream: Iterator[CreateChatCompletionStreamResponse] = self.__model.create_chat_completion(
+            messages=self.__context.get_context(),                                                        # type: ignore
 
-        while (
-                GITImageProcessor.processor is None
-            or GITImageProcessor.model     is None
-            or GITImageProcessor.device    is None
-        ):
-            if self.__check_sigint():
-                logger.error("SIGINT received, shutting down caption generation")
-                return "" #                                                                                     return #
+            max_tokens=-1,  # until end of context window
+            temperature=request.temperature,
+            top_k=request.top_k,
+            top_p=request.top_p,
+            seed=request.seed,
+            stream=True,
+        )
+        
+        logger.info(f"Got the following config for this request - "
+                    f"temperature: {request.temperature}, "
+                    f"top_k: {request.top_k}, "
+                    f"top_p: {request.top_p}, "
+                    f"seed: {request.seed} ")
+        
+        for response in stream:
+            response_choice: Optional[dict] = response["choices"][0]
 
-        try:
-            self.__check("SIGINT received, shutting down caption generation")
-        except KeyboardInterrupt:
-            return "" #                                                                                         return #
+            if not isinstance(response_choice, dict):
+                continue
 
-        image = Image.open(os.path.abspath(img))
-        logger.debug(f"image opened: {img}")
+            if (role := str(dict(response_choice.get("delta")).get("role", ""))):
+                partial_response["id"] = response["id"]
+                partial_response["model"] = response["model"]
+                partial_response["created"] = response["created"]
+                partial_response["role"] = role
+                continue
 
-        inp = GITImageProcessor.processor(images=image,return_tensors="pt").to(GITImageProcessor.device)
-        logger.debug("image pre-processed")
+            if (content := str(dict(response_choice.get("delta")).get("content", ""))):
+                partial_response["content"] += content
+                partial_response["finish_reason"] = (
+                    None
+                    if (finish_reason := str(response_choice["finish_reason"])) == "None"
+                    else finish_reason
+                )
 
-        generated_ids = GITImageProcessor.model.generate(pixel_values=inp.pixel_values,max_length=50)
-        logger.debug("caption generated")
+            if response_choice["finish_reason"] == "stop":
+                self.__context.append(
+                    role=str(partial_response["role"]),
+                    text=str(partial_response["content"])
+                )
+                
+            yield ChatResponse(
+                id=partial_response["id"],
+                model=partial_response["model"],
+                created=partial_response["created"],
+                role=partial_response["role"],
 
-        generated_caption = GITImageProcessor.processor.batch_decode(generated_ids,skip_special_tokens=True)[0]
-        logger.debug(f"decoded caption: {generated_caption}")
+                index=int(str(response_choice["index"])),
+                content=content,
+                finish_reason=(
+                    None
+                    if (finish_reason := str(response_choice["finish_reason"])) == "None"
+                    else finish_reason
+                )
+            ) #                                                                                             yield return
+    # end                                                                                                      predict #
 
-        return generated_caption #                                                                              return #
-    # end ........................................ GITImageProcessor ........................... -> __generate_caption #
+    def predict_batch(self, requests: list[ChatRequest]) -> list[ChatResponse]:
+        raise NotImplementedError("This function will contain the model batch prediction code")
+    # end                                                                                                predict_batch #
 
-    # ---------------------------------------------------------------------------------------------------------------- #
+    # -------------------------------------------------- properties -------------------------------------------------- #
 
-    def generate_caption(self, img: str) -> str: # ................................................................... #
-        if threading.current_thread() is not threading.main_thread():
-            raise RuntimeError("'generate_caption' MUST be in the main thread")
+    @property
+    def is_loaded(self) -> bool:
+        return self.__is_model_loaded
+    # end                                                                                                    is_loaded #
 
-        with SigintHandler("running caption generation, SIGINT ignored") as siR:
-            self.__check_sigint = siR
-            return self.__generate_caption(img)
-    # end ........................................ GITImageProcessor ............................. -> generate_caption #
-    
-    @classmethod
-    def shutdown(cls, reason: str) -> None: # ....................................................................... #
-        logger.error(reason)
+    @property
+    def model_name(self) -> str:
+        return self.__model_name
+    # end                                                                                                   model_name #
 
-        # -------------------------------------------- free up resources --------------------------------------------- #
+    @property
+    def current_config(self) -> BaseChatConfig:
+        return self.__config
+    # end                                                                                               current_config #
 
-        if 'processor' in dir(cls): del GITImageProcessor.processor
-        if 'model'     in dir(cls): del GITImageProcessor.model
-        if 'device'    in dir(cls): del GITImageProcessor.device
+    @property
+    def multi_model(self) -> bool:
+        return self.__multi_model
+    # end                                                                                                  multi_model #
 
-        # ------------------------------------------------------------------------------------------------------------ #
+    @property
+    def timeout(self) -> int:
+        raise NotImplementedError("This function will return the timeout value")
+    # end                                                                                                      timeout #
 
-        gc.collect() # force garbage collection to free up memory
+    @timeout.setter
+    def timeout(self, value: int) -> None:
+        raise NotImplementedError("This function will set the timeout value")
+    # end                                                                                               timeout.setter #
 
-        # -- set globals to None to avoid accidental use of freed resources -- #
+    @property
+    def model_path(self) -> Path:
+        raise NotImplementedError("This function will return the model path")
+    # end                                                                                                   model_path #
 
-        GITImageProcessor.processor = None
-        GITImageProcessor.model     = None
-        GITImageProcessor.device    = None
+    # ----------------------------------------------- private functions ---------------------------------------------- #
 
-        # ------------------------------------------------------------------------------------------------------------ #
+    def _load_model(self) -> None:
+        if self.__is_hub:
+            if not os.path.exists(Path(os.getcwd(), "Server", "models")):
+                os.makedirs(Path(os.getcwd(), "Server", "models"), exist_ok=True)
 
-        logger.info("Resources freed, final shutdown complete.")
-    # end ........................................ GITImageProcessor ..................................... -> shutdown #
-# end .............................................................................................. GITImageProcessor #
+            if self.__multi_model:
+                self.__clip_model_path = MoondreamChatHandler.from_pretrained(
+                    repo_id   = self.__model_name,
+                    filename  = self.__clip_path,
+                    local_dir = Path(os.getcwd(), "Server", "models"),
+                    verbose   = False,
+                )
+
+            self.__model     = Llama.from_pretrained(
+                repo_id      = self.__model_name,
+                filename     = self.__file_name,
+                chat_handler = self.__clip_model_path if self.__clip_model_path is not None else None,
+                local_dir    = Path(os.getcwd(), "Server", "models"),
+
+                use_mlock    = self.__config.keep_in_mem,
+                n_ctx        = self.__config.max_tokens,
+                n_gpu_layers = -1,
+                verbose      = False,
+            )
+        else:
+            if self.__multi_model and self.__clip_path is not None:
+                self.__clip_model_path = Llava15ChatHandler(
+                    clip_model_path    = self.__clip_path,
+                    verbose            = False
+                )
+
+            self.__model     = Llama(
+                model_path   = self.__model_name,
+                chat_handler = self.__clip_model_path if self.__clip_model_path is not None else None,
+
+                use_mlock    = self.__config.keep_in_mem,
+                n_ctx        = self.__config.max_tokens,
+                n_gpu_layers = -1,
+                verbose      = False,
+            )
+
+        if self.__model is None:
+            self.__is_model_loaded = False
+            raise ModelFailedToLoad("Model failed to load")
+    # end                                                                                                  _load_model #
+
+    def _unload_model(self) -> None:
+        logger.info("Unloading model")
+        del self.__model
+        gc.collect()
+
+        logger.info("Model unloaded")
+        self.__is_model_loaded = False
+        self.__model = None # set the model to None to prevent further use
+    # end                                                                                                _unload_model #
+# end                                                                                                        LoadModel #

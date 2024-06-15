@@ -6,10 +6,7 @@ from   typing import Any, Callable
 
 # -------------------------------------------------- local imports --------------------------------------------------- #
 
-from .tech_enum           import TechStackEnum                                                             # type:ignore
-from .model_loader                  import GITImageProcessor                                                         # type:ignore
-from .utils               import UTILS                                                                     # type:ignore
-from .utils               import HandleJson                                                                # type:ignore
+from .prelude import prelude
 
 # -------------------------------------------------- set up logging -------------------------------------------------- #
 
@@ -20,7 +17,6 @@ logger: logging.Logger = logging.getLogger("rich")
 
 class RunTests: # .................................................................................................... #
     __all_tests: list[Callable[[Any], None]]
-
 
     def __init__(self) -> None: # .................................................................................... #
         
@@ -54,7 +50,7 @@ class RunTests: # ..............................................................
         logger.debug(f"all tests: {RunTests.__all_tests}")
     # end ............................................. RunTests ......................................... -> __init__ #
 
-    def next(self, *args, **kwargs) -> None: # ....................................................................... #
+    def next(self, *args, **kwargs) -> None | BaseException: # ....................................................... #
         
         """ RunTests.next
             next - runs the next test in the list of tests
@@ -64,18 +60,22 @@ class RunTests: # ..............................................................
                 **kwargs: any keyword arguments to pass to the test
                 
             Returns:
-                None
+                None | BaseException - if the test raises an exception it will be returned
         """
         
         if self.__current_test < len(RunTests.__all_tests):
-            RunTests.__all_tests[self.__current_test](self, *args, **kwargs)
+            result: None | BaseException = RunTests.__all_tests[self.__current_test](self, *args, **kwargs)
+            
             self.__current_test += 1
+            return result #                                                                                       return
+        
         else:
             logger.error("all tests completed")
+            
+        return None #                                                                                             return
     # end ............................................. RunTests ............................................. -> next #
 
-
-    def _1(self) -> None: # .......................................................................................... #
+    def _2(self) -> None | ImportError: # ............................................................................ #
         
         """ RunTests.test_1
             test_1 - tests if requirement.txt and llama_cpp is installed
@@ -85,7 +85,7 @@ class RunTests: # ..............................................................
                 ImportError: if llama_cpp is not installed
                 
             Returns:
-                None
+                None | ImportError - if llama_cpp is not installed
         """
         
         logger.debug("test 1.1 - testing if torch is installed, if this fails then is requirement.txt installed?")
@@ -95,30 +95,38 @@ class RunTests: # ..............................................................
             logger.error("requirement.txt is not installed auto running 'python -m venv .venv' "
                          "and"
                          " '.venv/bin/python3 -m pip install -r requirements.txt'")
-            os.system(f"{sys.executable} -m venv .venv")
             
-            if not os.path.exists(os.path.join(os.getcwd(), ".venv", "bin", "python3")):
-                logger.error("failed to create virtual environment run commands manually")
-                return #                                                                                        return #
-            
-            os.system(f"{os.path.join(os.getcwd(), ".venv", "bin", "python3")} -m pip install -r requirements.txt")
-            logger.info("successfully installed requirements.txt run 'python -m venv .venv'"
-                "to activate the virtual environment")
-            
-            sys.exit(0)
+            return ImportError("torch") #                                                                         return
         
         logger.debug("test 1.2 - testing if llama_cpp is installed, if not this "
                      "test will error and auto install it based on the platform")
+        try:
+            import llama_cpp
         
-        import llama_cpp
+        except ImportError:
+            logger.error("llama_cpp is not installed auto installing it")
+            return ImportError("llama_cpp") #                                                                     return
+
+        logger.debug("test 1.3 - testing if whispercpp is installed, if not this "
+                     "test will error and auto install it based on the platform")
+        try:
+            import whispercpp
         
+        except ImportError:
+            logger.error("whispercpp is not installed auto installing it")
+            return ImportError("whispercpp") #                                                                    return
         
+        return None #                                                                                             return
     # end ............................................. RunTests ........................................... -> test_1 #
 
-    def _2(self, data_path: str) -> None: # .......................................................................... #
-        raise NotImplementedError("test_2 is not yet implemented")
+    def _1(self) -> None: # .......................................................................................... #
+        # check if the dir is in VoxAI/Server or VoxAI, if its in Server then we need to move up one dir
+        if os.path.basename(os.getcwd()) == "Server":
+            logger.error("please run this script from the root of the project, use 'cd ..' to move up one directory")
+            sys.exit(1)
     # end ............................................. RunTests ........................................... -> test_2 #
 
-    def _3(self, GIT_inst: GITImageProcessor) -> None: # ............................................................. #
+    def _3(self) -> None: # .......................................................................................... #
         raise NotImplementedError("test_3 is not yet implemented")
     # end ............................................. RunTests ........................................... -> test_3 #
+# end ....................................................................................................... RunTests #

@@ -27,3 +27,4 @@ dist/
 .venv/
 .mypy_cache/
 build/
+models/
