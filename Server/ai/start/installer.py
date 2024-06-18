@@ -370,7 +370,6 @@ class installer:
 
 @final
 class prelude(installer):
-
     """ prelude
         prelude - this is the final class that extends all the other classes required for the prelude
     """
@@ -385,5 +384,5 @@ class prelude(installer):
         """
 
         raise Exception("This class is not meant to be instantiated.")
-    # end                                               prelude                                               __init__ #
+    # end                                                                                                     __init__ #
 # end                                                                                                          prelude #

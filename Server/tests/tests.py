@@ -6,7 +6,7 @@ from   typing import Any, Callable
 
 # -------------------------------------------------- local imports --------------------------------------------------- #
 
-from .prelude import prelude
+from Server.ai.start.installer import prelude
 
 # -------------------------------------------------- set up logging -------------------------------------------------- #
 
@@ -15,10 +15,10 @@ logger: logging.Logger = logging.getLogger("rich")
 
 # --------------------------------------------------- TESTS ---------------------------------------------------------- #
 
-class RunTests: # .................................................................................................... #
+class RunTests:
     __all_tests: list[Callable[[Any], None]]
 
-    def __init__(self) -> None: # .................................................................................... #
+    def __init__(self) -> None:
         
         """ RunTests.__init__
             __init__ - initializes the tests to run by calling the `next()` method
@@ -46,11 +46,11 @@ class RunTests: # ..............................................................
         ]
 
         RunTests.__all_tests.sort(key=lambda x: int(x.__name__[1:])) # sort tests by number 1..n
-
+        
         logger.debug(f"all tests: {RunTests.__all_tests}")
-    # end ............................................. RunTests ......................................... -> __init__ #
+    # end                                                                                                     __init__ #
 
-    def next(self, *args, **kwargs) -> None | BaseException: # ....................................................... #
+    def next(self, *args, **kwargs) -> None | BaseException:
         
         """ RunTests.next
             next - runs the next test in the list of tests
@@ -73,9 +73,9 @@ class RunTests: # ..............................................................
             logger.error("all tests completed")
             
         return None #                                                                                             return
-    # end ............................................. RunTests ............................................. -> next #
+    # end                                                                                                         next #
 
-    def _2(self) -> None | ImportError: # ............................................................................ #
+    def _2(self) -> None | ImportError:
         
         """ RunTests.test_1
             test_1 - tests if requirement.txt and llama_cpp is installed
@@ -117,16 +117,16 @@ class RunTests: # ..............................................................
             return ImportError("whispercpp") #                                                                    return
         
         return None #                                                                                             return
-    # end ............................................. RunTests ........................................... -> test_1 #
+    # end                                                                                                       test_1 #
 
-    def _1(self) -> None: # .......................................................................................... #
+    def _1(self) -> None:
         # check if the dir is in VoxAI/Server or VoxAI, if its in Server then we need to move up one dir
         if os.path.basename(os.getcwd()) == "Server":
-            logger.error("please run this script from the root of the project, use 'cd ..' to move up one directory")
+            logger.error("please run this script from the root of the project, use 'cd   ' to move up one directory")
             sys.exit(1)
-    # end ............................................. RunTests ........................................... -> test_2 #
+    # end                                                                                                       test_2 #
 
-    def _3(self) -> None: # .......................................................................................... #
+    def _3(self) -> None:
         raise NotImplementedError("test_3 is not yet implemented")
-    # end ............................................. RunTests ........................................... -> test_3 #
-# end ....................................................................................................... RunTests #
+    # end                                                                                                       test_3 #
+# end                                                                                                         RunTests #

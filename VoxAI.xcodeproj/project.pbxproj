@@ -7,20 +7,33 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		BF1234192C1F5D6400AFE89E /* CameraCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1234182C1F5D6400AFE89E /* CameraCapture.swift */; };
+		BF12341D2C1F6E8C00AFE89E /* LoginPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF12341C2C1F6E8C00AFE89E /* LoginPage.swift */; };
+		BF12341F2C1F6E9D00AFE89E /* Networking.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF12341E2C1F6E9D00AFE89E /* Networking.swift */; };
+		BF1234212C1F729400AFE89E /* VoxAIApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1234202C1F729400AFE89E /* VoxAIApp.swift */; };
+		BF1234232C1F72A500AFE89E /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1234222C1F72A500AFE89E /* AppState.swift */; };
+		BF1234252C203F6E00AFE89E /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1234242C203F6E00AFE89E /* ChatView.swift */; };
+		BF1234282C20707700AFE89E /* Down in Frameworks */ = {isa = PBXBuildFile; productRef = BF1234272C20707700AFE89E /* Down */; };
 		BF6028642BD9A60F002D3785 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6028632BD9A60F002D3785 /* AppDelegate.swift */; };
 		BF6028662BD9A60F002D3785 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6028652BD9A60F002D3785 /* ContentView.swift */; };
 		BF6028682BD9A610002D3785 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BF6028672BD9A610002D3785 /* Assets.xcassets */; };
 		BF60286B2BD9A610002D3785 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BF60286A2BD9A610002D3785 /* Preview Assets.xcassets */; };
-		BFFE3FBF2BEDC191007F6EBA /* LoginPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFFE3FBE2BEDC191007F6EBA /* LoginPage.swift */; };
+		BFFE3FBF2BEDC191007F6EBA /* LandingPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFFE3FBE2BEDC191007F6EBA /* LandingPage.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		BF1234182C1F5D6400AFE89E /* CameraCapture.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CameraCapture.swift; sourceTree = "<group>"; };
+		BF12341C2C1F6E8C00AFE89E /* LoginPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginPage.swift; sourceTree = "<group>"; };
+		BF12341E2C1F6E9D00AFE89E /* Networking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Networking.swift; sourceTree = "<group>"; };
+		BF1234202C1F729400AFE89E /* VoxAIApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoxAIApp.swift; sourceTree = "<group>"; };
+		BF1234222C1F72A500AFE89E /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		BF1234242C203F6E00AFE89E /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		BF6028602BD9A60F002D3785 /* VoxAI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VoxAI.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BF6028632BD9A60F002D3785 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		BF6028652BD9A60F002D3785 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		BF6028672BD9A610002D3785 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BF60286A2BD9A610002D3785 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		BFFE3FBE2BEDC191007F6EBA /* LoginPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginPage.swift; sourceTree = "<group>"; };
+		BFFE3FBE2BEDC191007F6EBA /* LandingPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LandingPage.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -28,6 +41,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BF1234282C20707700AFE89E /* Down in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -53,9 +67,15 @@
 		BF6028622BD9A60F002D3785 /* VoxAI */ = {
 			isa = PBXGroup;
 			children = (
-				BFFE3FBE2BEDC191007F6EBA /* LoginPage.swift */,
+				BFFE3FBE2BEDC191007F6EBA /* LandingPage.swift */,
+				BF12341C2C1F6E8C00AFE89E /* LoginPage.swift */,
 				BF6028632BD9A60F002D3785 /* AppDelegate.swift */,
+				BF12341E2C1F6E9D00AFE89E /* Networking.swift */,
+				BF1234242C203F6E00AFE89E /* ChatView.swift */,
+				BF1234182C1F5D6400AFE89E /* CameraCapture.swift */,
 				BF6028652BD9A60F002D3785 /* ContentView.swift */,
+				BF1234202C1F729400AFE89E /* VoxAIApp.swift */,
+				BF1234222C1F72A500AFE89E /* AppState.swift */,
 				BF6028672BD9A610002D3785 /* Assets.xcassets */,
 				BF6028692BD9A610002D3785 /* Preview Content */,
 			);
@@ -86,6 +106,9 @@
 			dependencies = (
 			);
 			name = VoxAI;
+			packageProductDependencies = (
+				BF1234272C20707700AFE89E /* Down */,
+			);
 			productName = VoxAI;
 			productReference = BF6028602BD9A60F002D3785 /* VoxAI.app */;
 			productType = "com.apple.product-type.application";
@@ -114,6 +137,9 @@
 				Base,
 			);
 			mainGroup = BF6028572BD9A60F002D3785;
+			packageReferences = (
+				BF1234262C20707700AFE89E /* XCRemoteSwiftPackageReference "Down" */,
+			);
 			productRefGroup = BF6028612BD9A60F002D3785 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -141,7 +167,13 @@
 			buildActionMask = 2147483647;
 			files = (
 				BF6028662BD9A60F002D3785 /* ContentView.swift in Sources */,
-				BFFE3FBF2BEDC191007F6EBA /* LoginPage.swift in Sources */,
+				BFFE3FBF2BEDC191007F6EBA /* LandingPage.swift in Sources */,
+				BF1234192C1F5D6400AFE89E /* CameraCapture.swift in Sources */,
+				BF1234232C1F72A500AFE89E /* AppState.swift in Sources */,
+				BF1234252C203F6E00AFE89E /* ChatView.swift in Sources */,
+				BF1234212C1F729400AFE89E /* VoxAIApp.swift in Sources */,
+				BF12341F2C1F6E9D00AFE89E /* Networking.swift in Sources */,
+				BF12341D2C1F6E8C00AFE89E /* LoginPage.swift in Sources */,
 				BF6028642BD9A60F002D3785 /* AppDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -352,6 +384,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		BF1234262C20707700AFE89E /* XCRemoteSwiftPackageReference "Down" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/johnxnguyen/Down";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		BF1234272C20707700AFE89E /* Down */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BF1234262C20707700AFE89E /* XCRemoteSwiftPackageReference "Down" */;
+			productName = Down;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = BF6028582BD9A60F002D3785 /* Project object */;
 }

@@ -1,7 +1,0 @@
-[server]
-ip = "127.0.0.1"
-port = 6380
-password = "123456"
-
-[config]
-huggingface_key = "your_huggingface_key"

@@ -1,14 +1,14 @@
 # ------------------------------------------------- regular imports -------------------------------------------------- #
 
-from types import FrameType
 import signal
+import logging
 import threading
 
-from typing             import Callable, Optional, Union
+from types  import FrameType
+from typing import Callable, Optional, Union
 
 # -------------------------------------------------- set up logging -------------------------------------------------- #
 
-import  logging
 logger: logging.Logger = logging.getLogger("rich")
 
 # ----------------------------------------------------- AI ----------------------------------------------------------- #
@@ -21,7 +21,7 @@ class SigintHandler:
             cls._instance               = super(SigintHandler, cls).__new__(cls)
             cls._instance.__initialized = False                                                            # type:ignore
 
-        return cls._instance #                                                                                  return #
+        return cls._instance #                                                                                    return
     # end                                                                                                      __new__ #
 
     def __init__(self, ignore_msg: str = "") -> None:
@@ -44,7 +44,7 @@ class SigintHandler:
 
     def __enter__(self) -> Callable[[], bool]:
         signal.signal(signal.SIGINT, self.sigint_handle)                                                   # type:ignore
-        return self.sigint_received #                                                                           return #
+        return self.sigint_received #                                                                             return
     # end                                                                                                    __enter__ #
 
     def __exit__(self, *_: tuple) -> None:
@@ -52,6 +52,6 @@ class SigintHandler:
     # end                                                                                                     __exit__ #
 
     def sigint_received(self):
-        return self.__recv     #                                                                                return #
+        return self.__recv #                                                                                      return
     # end                                                                                              sigint_received #
 # end                                                                                                    SigintHandler #

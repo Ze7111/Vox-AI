@@ -1,6 +1,7 @@
 {
   "images" : [
     {
+      "filename" : "AppIcon 2_upscayl_1024px_realesrgan-x4plus.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"

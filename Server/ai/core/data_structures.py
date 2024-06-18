@@ -1,10 +1,10 @@
 # ------------------------------------------------- regular imports -------------------------------------------------- #
 
-import logging
 import os
 import sys
-from typing import Literal, Optional
+import logging
 
+from typing   import Literal, Optional
 from pydantic import BaseModel, Field
 
 # -------------------------------------------------- set up logging -------------------------------------------------- #
@@ -17,24 +17,20 @@ class AudioData(BaseModel):
     ...
 # end                                                                                                        AudioData #
 
-
 class ImageData(BaseModel):
     img_id:     str = Field(..., description="the unique identifier for the image")
     base64_img: str = Field(..., description="the base64 for the image")
 # end                                                                                                        ImageData #
 
-
 class TranscribedText(BaseModel):
     ...
 # end                                                                                                  TranscribedText #
-
 
 class TrainingRequest(BaseModel):
     ...
 # end                                                                                                  TrainingRequest #
 
 class BaseChatConfig(BaseModel):
-        
         """ ChatConfig
             ChatConfig - represents the configuration for chat
     
@@ -62,7 +58,6 @@ class ChatRequest(BaseModel):
     seed:        Optional[int]             = Field(None, description="the random seed for sampling")
     images:      Optional[list[ImageData]] = Field(None, description="the images to use for chat")
 # end                                                                                                      ChatRequest #
-
 
 class ChatResponse(BaseModel):
     id:            str           = Field(..., description="the unique identifier for the response")

@@ -2,11 +2,14 @@
 
 import json
 import logging
-from typing import Optional, Union
+
+from typing                    import Optional, Union
+from Server.config.read_config import Config
 
 # -------------------------------------------------- set up logging -------------------------------------------------- #
 
 import  logging
+
 logger: logging.Logger = logging.getLogger("rich")
 
 # ----------------------------------------------------- context ------------------------------------------------------ #
@@ -38,14 +41,14 @@ class SingleChatContent:
         """
         self.__text_added: bool = False
         self.role: str = role
-        self.content: list[dict[str, Union[str, dict[str, str]]]] = []
+        self.content: list[dict[str, Union[str, dict[str, str]]]] | str = []
 
         if text:
             self.add_text(text)
 
         if base64_images:
             self.add_images(base64_images)
-            
+
         logger.debug(f"Initialized SingleChatContent with role={role}, text={text}, base64_images="
                       + ' '.join(
                         [
@@ -67,12 +70,17 @@ class SingleChatContent:
                          f"current text: {[txt for txt in self.content if txt['type'] == 'text'][0]['text']}")
             return
 
-        self.content.append(
-            {
-                "type": "text",
-                "text": text
-            }
-        )
+        if self.role == "user" and isinstance(self.content, list):
+            self.content.append(
+                {
+                    "type": "text",
+                    "text": text
+                }
+            )
+
+        else:
+            self.content = text
+
         self.__text_added = True
         logger.debug(f"Added text: {text}")
     # end                                                                                                     add_text #
@@ -127,7 +135,7 @@ class SingleChatContent:
                 }
             }
         ])
-        
+
         logger.debug(
             f"Added image with tag={tag} and base64_uri="
             f"data:image/png;base64,{str(len(bytes(base64_uri.split(',')[1], 'utf-8')))}bytes")
@@ -159,10 +167,11 @@ class SingleChatContent:
         """
         logger.debug("Retrieved chat content.")
         return {
-            "role": self.role,
+            "role":    self.role,
             "content": self.content
         }
     # end                                                                                            SingleChatContext #
+# end                                                                                                SingleChatContent #
 
 class ChatContext:
     """ Manages the chat context for an local llm.
@@ -176,12 +185,13 @@ class ChatContext:
     base_prompt: dict[str, str] = {
         "role": "system",
         "content": (
-            "you are an intelligent assistant designed to help students with their"
-            "lectures. You can respond to student queries about lecture content, provide"
-            "explanations using relevant images from your memory, and assist with topics"
-            "by analyzing textbook images uploaded by students. Use the combined audio"
-            "and visual data to give accurate, contextually appropriate answers,"
-            "enhancing the students' learning experience."
+            "you are an intelligent assistant designed to help students with their "
+            "lectures. You can respond to student queries about lecture content, provide "
+            "explanations using relevant images from your memory, and assist with topics "
+            "by analyzing textbook images uploaded by students. Use the combined audio "
+            "and visual data to give accurate, contextually appropriate answers, "
+            "enhancing the students' learning experience. All your responses should be "
+            "in the form of Markdown text"
         )
     }
 
@@ -194,7 +204,7 @@ class ChatContext:
             )
         ]
         self.total_images: int = 0
-        
+
         logger.debug("Initialized ChatContext with base system prompt.")
     # end                                                                                                     __init__ #
 
@@ -212,9 +222,24 @@ class ChatContext:
                 text (Optional[str]): The text content to append.
                 base64_images (Optional[list[str]]): list of base64 encoded images.
         """
-        self.contexts.append(SingleChatContent(role, text, base64_images))
         self.total_images += len(base64_images) if base64_images else 0
-        
+        if self.total_images > Config.max_images:
+            logger.error(
+                f"Cannot add more than {Config.max_images} images to the context, omitting..."
+            )
+
+        self.contexts.append(
+            SingleChatContent(
+                role,
+                text,
+                (
+                    base64_images
+                    if self.total_images <= Config.max_images
+                    else None
+                )
+            )
+        )
+
         logger.debug(
             f"Appended new content: role={role}, text={text}, base64_images="
             + ' '.join(
@@ -222,8 +247,8 @@ class ChatContext:
                     f"data:image/png;base64,{str(len(bytes(base64_uri.split(',')[1], 'utf-8')))}bytes"
                     for base64_uri in base64_images
                 ]
-            ) if base64_images else 'None')
-        
+            ) if base64_images and self.total_images <= Config.max_images else 'None')
+
     # end                                                                                                  add_context #
 
     def get_context(self) -> list[dict[str, Union[str, list[dict[str, Union[str, dict[str, str]]]]]]]:
@@ -273,13 +298,14 @@ class ChatContext:
 
         # remove the image urls from the string and replace them with how many bytes the base64 is
         for content in self.get_context():
-            for chat in content["content"]:
-                if chat["type"] == "image_url":
-                    base64 = chat["image_url"]["url"]
-                    modified_content = modified_content.replace(
-                        base64,
-                        f"data:image/png;base64,{str(len(bytes(base64.split(',')[1], 'utf-8')))}bytes"
-                    )
+            if isinstance(content, list):
+                for chat in content["content"]:
+                    if chat["type"] == "image_url":  # type:ignore
+                        base64 = chat["image_url"]["url"]  # type:ignore
+                        modified_content = modified_content.replace(
+                            base64,
+                            f"data:image/png;base64,{str(len(bytes(base64.split(',')[1], 'utf-8')))}bytes",
+                        )
 
         logger.debug("Generated string representation of the chat context.")
         return modified_content
@@ -294,3 +320,4 @@ class ChatContext:
         """
         return self.__repr__()
     # end                                                                                                      __str__ #
+# end                                                                                                      ChatContext #

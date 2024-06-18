@@ -3,45 +3,33 @@
 import gc
 import os
 import threading
+
+from pathlib            import Path
 from concurrent.futures import TimeoutError
-from pathlib import Path
-from typing import Iterator, Optional, Union
+from typing             import Iterator, Optional, Union
 
-from llama_cpp import (ChatCompletionStreamResponseChoice,
-                       CreateChatCompletionResponse,
-                       CreateChatCompletionStreamResponse)
-from llama_cpp.llama_chat_format import (Llava15ChatHandler,
-                                         MoondreamChatHandler)
-from llama_cpp.llama_speculative import LlamaPromptLookupDecoding
+from llama_cpp import ChatCompletionRequestMessage
 
-try: from llama_cpp              import CreateCompletionResponse, Llama
-except ImportError: pass
+from Server.config.read_config import Config
+
+try:
+    from llama_cpp                   import CreateChatCompletionStreamResponse, Llama
+    from llama_cpp.llama_chat_format import Llava15ChatHandler, MoondreamChatHandler
+    from llama_cpp.llama_speculative import LlamaPromptLookupDecoding
+except ImportError:
+    pass
 
 # -------------------------------------------------- local imports --------------------------------------------------- #
 
 import logging
 
-from .context import ChatContext  # type:ignore
-from .pydantic_structures import (BaseChatConfig, ChatRequest,  # type:ignore
-                                  ChatResponse)
+from Server.ai.context.chat_context    import ChatContext
+from Server.ai.core.data_structures    import BaseChatConfig, ChatRequest, ChatResponse
+from Server.ai.core.errors             import ModelFailedToLoad, ModelNotFoundError, ModelTookTooLongToLoad
 
 # -------------------------------------------------- set up logging -------------------------------------------------- #
 
 logger: logging.Logger = logging.getLogger("rich")
-
-# ----------------------------------------------------- AI ----------------------------------------------------------- #
-
-class ModelNotFoundError(Exception):
-    pass
-
-class ModelFailedToLoad(Exception):
-    pass
-
-class ModelTypeNotSupported(Exception):
-    pass
-
-class ModelTookTooLongToLoad(Exception):
-    pass
 
 # -------------------------------------------------- LoadModel ------------------------------------------------------- #
 
@@ -51,9 +39,9 @@ class Hub:
         self.file_name: str = file_name
         self.clip_name: str = clip_name
     # end                                                                                                     __init__ #
+# end                                                                                                              Hub #
 
 class Model:
-
     """ this class will contain the high-level managed api for the following:
             - loading the model
             - chat
@@ -64,21 +52,46 @@ class Model:
 
         ------------------------------------------------------------------------
         ```python
-        from pathlib import Path
+        >>> from pathlib import Path
 
-        model = Model(Path("..", "Bunny-Llama-3-8B-V-gguf"), ChatConfig(...))
-        # or
-        model = Model(Hub("BAAI/Bunny-Llama-3-8B-V-gguf"),   ChatConfig(...))
+        >>> model = Model(
+        ...     Path("..", "Bunny-Llama-3-8B-V-gguf"),
+        ...     BaseChatConfig(...)
+        ... )
 
-        response: ChatResponse = model.predict(request=ChatRequest(...))
+        >>> # alternatively you can use a hub model (will install if not found)
 
-        # process a batch of requests asynchronously (if possible)
-        batch_response: list[ChatResponse] = model.predict_batch(requests=[ChatRequest(...), ...])
+        >>> # model = Model(
+        ... #     Hub("BAAI/Bunny-Llama-3-8B-V-gguf"),
+        ... #     BaseChatConfig(...)
+        ... # )
 
-        print(response.text)
+        >>> response: ChatResponse = model.predict(
+        ...     request=ChatRequest(...)
+        ... )
 
-        for response in batch_response:
-            print(response.text)
+        >>> # process a batch of requests asynchronously (if possible)
+        >>> batch_response: list[ChatResponse] = model.predict_batch(
+        ...     requests=[ChatRequest(...), ...]
+        ... )
+
+        >>> for chunk in response:
+        ...    print(chunk.text)
+
+        >>> for response_instance in batch_response:
+        ...     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        ...         # each element in the bath response is a inst of a ChatResponse
+        ...         # so we need to iterate over the batch response async
+        ...         # and then iterate over each chunk in the response in sync with
+        ...         # the batch response chunk iteration so if we are predicting 10
+        ...         # requests in a batch, we will get 10 response instances to
+        ...         # iterate over
+
+        ...         for chunk in response_instance:
+        ...             executor.submit(print, chunk.text)
+
+        >>> # this is optional as the model is designed with RAII in mind
+        >>> del model
         ```
         ------------------------------------------------------------------------
 
@@ -86,7 +99,7 @@ class Model:
             pretrained (Path|str): the model either a huggingface model (str)
                                    or a path to a model (Path)
 
-            config (ChatConfig): the config struct to use. can also be passed
+            config (BaseChatConfig): the config struct to use. can also be passed
                                  with the predict function for a one-off config
 
             image_processor_path (Optional[Path]): the path to the image processor
@@ -107,18 +120,17 @@ class Model:
 
     def __init__(self,
                  pretrained: Path | Hub,
-                 config: BaseChatConfig,
                  /,
-                 image_processor_path: Optional[Path] = None,
-                 multi_model: Optional[bool] = False, # this is to not check for clip in pretrained
-                 timeout: Optional[int] = -1) -> None:
+                 image_processor_path: Optional[Path] = None ,
+                 multi_model: Optional[bool]          = False, # this is to not check for clip in pretrained
+                 timeout: Optional[int]               = -1   ) -> None:
 
         self.__model_name: str = ""
         self.__is_hub: bool = False
 
-        self.__clip_model_path: Optional[Llava15ChatHandler] = None
-        self.__clip_path:       Optional[str]                = None
-        self.__context:         ChatContext                  = ChatContext()
+        self.__clip_model_path:  Optional[Llava15ChatHandler] = None
+        self.__clip_path:        Optional[str]                = None
+        self.__context:          ChatContext                  = ChatContext()
 
         if isinstance(pretrained, Hub):
             self.__is_hub = True
@@ -144,12 +156,12 @@ class Model:
         else:
             raise ModelNotFoundError(f"Model not found: {pretrained}")
 
-        self.__config:    BaseChatConfig  = config
+        self.__config:        Config  = Config
         self.__multi_model:     bool  = True if self.__clip_path is not None else False
         self.__timeout:          int  = timeout if timeout is not None else -1
         self.__is_model_loaded: bool  = True
         self.__model: Optional[Llama] = None
-
+        
         # create a new thread to load the model asynchronously with concurrent.futures
         logger.info("starting model load")
         # wait asynchronously for the model to load
@@ -169,7 +181,6 @@ class Model:
             logger.info("starting garbage collection")
             gc.collect() # collect garbage to free up memory
             logger.info("garbage collection done")
-
     # end                                                                                                     __init__ #
 
     def __del__(self) -> None:
@@ -213,6 +224,7 @@ class Model:
         if self.__model is None:
             raise ModelFailedToLoad("Model failed to load")
 
+        tokens_generated: int = 0
         partial_response: dict[str, Union[str, int, list[dict[str, str | dict[str, str]]]]] = {
             "content": "",
         }
@@ -224,51 +236,58 @@ class Model:
                 for img_data in request.images
             ] if request.images else None
         )
-        
-        stream: Iterator[CreateChatCompletionStreamResponse] = self.__model.create_chat_completion(
-            messages=self.__context.get_context(),                                                        # type: ignore
 
-            max_tokens=-1,  # until end of context window
+        stream: Iterator[CreateChatCompletionStreamResponse] = self.__model.create_chat_completion(
+            messages=self.__context.get_context(),
+
+            max_tokens=None,
             temperature=request.temperature,
             top_k=request.top_k,
             top_p=request.top_p,
             seed=request.seed,
             stream=True,
         )
-        
+
         logger.info(f"Got the following config for this request - "
                     f"temperature: {request.temperature}, "
                     f"top_k: {request.top_k}, "
                     f"top_p: {request.top_p}, "
                     f"seed: {request.seed} ")
-        
-        for response in stream:
+
+        while True:
+            try: response: ChatCompletionRequestMessage = next(stream)
+            except IndexError:
+                logger.error("Model failed to generate a response due to consuming more tokens then max_ctx tokens")
+                return ChatResponse(
+                    id="",
+                    model="",
+                    created=0,
+                    index=0,
+                    role=None,
+                    content=None,
+                    finish_reason="length"
+                )
+            
             response_choice: Optional[dict] = response["choices"][0]
 
             if not isinstance(response_choice, dict):
                 continue
 
             if (role := str(dict(response_choice.get("delta")).get("role", ""))):
-                partial_response["id"] = response["id"]
-                partial_response["model"] = response["model"]
+                partial_response["id"]      = response["id"]
+                partial_response["model"]   = response["model"]
                 partial_response["created"] = response["created"]
-                partial_response["role"] = role
+                partial_response["role"]    = role
                 continue
 
             if (content := str(dict(response_choice.get("delta")).get("content", ""))):
                 partial_response["content"] += content
                 partial_response["finish_reason"] = (
-                    None
+                    "None"
                     if (finish_reason := str(response_choice["finish_reason"])) == "None"
                     else finish_reason
                 )
 
-            if response_choice["finish_reason"] == "stop":
-                self.__context.append(
-                    role=str(partial_response["role"]),
-                    text=str(partial_response["content"])
-                )
-                
             yield ChatResponse(
                 id=partial_response["id"],
                 model=partial_response["model"],
@@ -278,15 +297,35 @@ class Model:
                 index=int(str(response_choice["index"])),
                 content=content,
                 finish_reason=(
-                    None
+                    "None"
                     if (finish_reason := str(response_choice["finish_reason"])) == "None"
                     else finish_reason
                 )
             ) #                                                                                             yield return
+            
+            if response_choice["finish_reason"] == "stop":
+                self.__context.append(
+                    role=str(partial_response["role"]),
+                    text=str(partial_response["content"])
+                )
+                break
     # end                                                                                                      predict #
 
     def predict_batch(self, requests: list[ChatRequest]) -> list[ChatResponse]:
-        raise NotImplementedError("This function will contain the model batch prediction code")
+        """ Generates predictions based on the given chat requests using the loaded model.
+            Returns a list of chat responses. This function predicts the responses in parallel.
+
+            Args:
+                requests (list[ChatRequest]): The chat requests containing text and images.
+
+            Returns:
+                list[ChatResponse]: A list of chat responses in web compatible format.
+
+            Raises:
+                ModelFailedToLoad: If the model did not start loading or is unloaded.
+                ModelTookTooLongToLoad: If the model took too long to load.
+        """
+        raise NotImplementedError("predict_batch is not implemented")
     # end                                                                                                predict_batch #
 
     # -------------------------------------------------- properties -------------------------------------------------- #
@@ -303,7 +342,11 @@ class Model:
 
     @property
     def current_config(self) -> BaseChatConfig:
-        return self.__config
+        return BaseChatConfig(
+            max_images=self.__config.max_images,
+            max_tokens=self.__config.max_tokens,
+            keep_in_mem=self.__config.keep_in_mem
+        )
     # end                                                                                               current_config #
 
     @property
@@ -313,18 +356,22 @@ class Model:
 
     @property
     def timeout(self) -> int:
-        raise NotImplementedError("This function will return the timeout value")
+        return self.__timeout
     # end                                                                                                      timeout #
 
     @timeout.setter
     def timeout(self, value: int) -> None:
-        raise NotImplementedError("This function will set the timeout value")
+        self.__timeout = value
     # end                                                                                               timeout.setter #
 
     @property
     def model_path(self) -> Path:
-        raise NotImplementedError("This function will return the model path")
+        return Path(self.__model_name)
     # end                                                                                                   model_path #
+
+    @property
+    def context(self) -> ChatContext:
+        return self.__context
 
     # ----------------------------------------------- private functions ---------------------------------------------- #
 

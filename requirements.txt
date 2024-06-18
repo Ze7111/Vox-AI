@@ -7,3 +7,5 @@ pydantic
 rich
 whispercpp
 fastapi
+toml
+types-toml

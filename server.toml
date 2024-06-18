@@ -1,0 +1,19 @@
+# Server configuration
+[server]
+# The IP address where the server will listen
+ip = "192.168.0.135"
+# The port number for the server
+port = 6380
+# Password for acessing the server
+password = "123456"
+
+# Configuration settings
+[config]
+# Hugging Face API key for accessing models
+huggingface_key = "" # Replace with your actual Hugging Face API key
+# Maximum number of images to process
+max_images  = 1
+# Maximum number of tokens for text processing
+max_tokens  = 8000
+# Flag to determine if the model should be kept in memory
+keep_in_mem = true
