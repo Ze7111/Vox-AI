@@ -1,19 +1,28 @@
 # Server configuration
 [server]
-# The IP address where the server will listen
-ip = "192.168.0.135"
+# The IP address where the server will listen (0.0.0.0 accepts connections from any IP)
+ip = "0.0.0.0"
 # The port number for the server
 port = 6380
-# Password for acessing the server
-password = "123456"
+# Password for accessing the server - CHANGE THIS IN PRODUCTION!
+password = "VoxAI-Production-2024"
 
 # Configuration settings
 [config]
 # Hugging Face API key for accessing models
 huggingface_key = "" # Replace with your actual Hugging Face API key
-# Maximum number of images to process
-max_images  = 1
-# Maximum number of tokens for text processing
-max_tokens  = 8000
-# Flag to determine if the model should be kept in memory
+# Maximum number of images to process in a single request
+max_images = 5
+# Maximum number of tokens for text processing (context window)
+max_tokens = 8192
+# Flag to determine if the model should be kept in memory for faster responses
 keep_in_mem = true
+
+# Logging configuration
+[logging]
+# Log level: debug, info, warning, error, critical
+level = "info"
+# Log to file
+log_to_file = true
+# Log file path
+log_file = "voxai_server.log"

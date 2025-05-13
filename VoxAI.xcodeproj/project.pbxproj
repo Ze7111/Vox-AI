@@ -33,6 +33,7 @@
 		BF6028652BD9A60F002D3785 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		BF6028672BD9A610002D3785 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BF60286A2BD9A610002D3785 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		BFD7E5042C3D2D4C0087F4E8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		BFFE3FBE2BEDC191007F6EBA /* LandingPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LandingPage.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -67,6 +68,7 @@
 		BF6028622BD9A60F002D3785 /* VoxAI */ = {
 			isa = PBXGroup;
 			children = (
+				BFD7E5042C3D2D4C0087F4E8 /* Info.plist */,
 				BFFE3FBE2BEDC191007F6EBA /* LandingPage.swift */,
 				BF12341C2C1F6E8C00AFE89E /* LoginPage.swift */,
 				BF6028632BD9A60F002D3785 /* AppDelegate.swift */,
@@ -311,6 +313,7 @@
 				DEVELOPMENT_TEAM = QT6DYJL2J5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VoxAI/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -342,6 +345,7 @@
 				DEVELOPMENT_TEAM = QT6DYJL2J5;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = VoxAI/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

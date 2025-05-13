@@ -14,9 +14,40 @@ struct VoxAIApp: App {
     
     var body: some Scene {
         WindowGroup {
-            NavigationView {
+            MainView()
+                .environmentObject(appState)
+                .preferredColorScheme(.dark)
+        }
+    }
+}
+
+struct MainView: View {
+    @EnvironmentObject var appState: AppState
+    
+    var body: some View {
+        Group {
+            if appState.isAuthenticated {
                 ContentView()
-                    .environmentObject(appState)
+            } else {
+                LandingPage()
+            }
+        }
+        .onAppear {
+            // Check for existing credentials and try auto-login
+            if let serverIP = UserDefaults.standard.string(forKey: "serverIP"),
+               let port = UserDefaults.standard.string(forKey: "port"),
+               let password = UserDefaults.standard.string(forKey: "password"),
+               !serverIP.isEmpty && !port.isEmpty && !password.isEmpty {
+                
+                NetworkManager.shared.updateCredentials(serverIP: serverIP, port: port, password: password)
+                NetworkManager.shared.sendLoginRequest { result in
+                    DispatchQueue.main.async {
+                        if case .success = result {
+                            appState.isAuthenticated = true
+                            appState.checkServerHealth()
+                        }
+                    }
+                }
             }
         }
     }
