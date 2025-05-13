@@ -9,9 +9,12 @@ import Foundation
 import SwiftUI
 
 struct LoginPage: View {
-    @State private var serverIP: String = ""
-    @State private var port: String = ""
-    @State private var password: String = ""
+    @State private var serverIP: String = UserDefaults.standard.string(forKey: "serverIP") ?? "127.0.0.1"
+    @State private var port: String = UserDefaults.standard.string(forKey: "port") ?? "6380"
+    @State private var password: String = UserDefaults.standard.string(forKey: "password") ?? ""
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var showError = false
     @EnvironmentObject var appState: AppState
 
     var body: some View {
@@ -47,8 +50,8 @@ struct LoginPage: View {
             Spacer()
 
             VStack(alignment: .leading, spacing: 20) {
-                CustomTextField(placeholder:   "Server IP", text: $serverIP)
-                CustomTextField(placeholder:   "Port", text: $port)
+                CustomTextField(placeholder: "Server IP", text: $serverIP)
+                CustomTextField(placeholder: "Port", text: $port)
                 CustomSecureField(placeholder: "Password", text: $password)
             }
             .padding()
@@ -57,9 +60,15 @@ struct LoginPage: View {
                 loginToServer()
             }) {
                 HStack(alignment: .firstTextBaseline) {
-                    Image(systemName: "server.rack")
-                        .imageScale(.medium)
-                    Text("Login")
+                    if isLoading {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .red))
+                            .scaleEffect(0.8)
+                    } else {
+                        Image(systemName: "server.rack")
+                            .imageScale(.medium)
+                        Text("Login")
+                    }
                 }
                 .font(.system(.body, weight: .medium))
                 .padding(.vertical, 16)
@@ -74,6 +83,7 @@ struct LoginPage: View {
                                 .red.opacity(0.15)))
                 }
             }
+            .disabled(isLoading)
             .padding(.horizontal)
 
             Spacer()
@@ -87,26 +97,55 @@ struct LoginPage: View {
             .blur(radius: 100)
         )
         .padding()
+        .alert("Connection Error", isPresented: $showError) {
+            Button("OK") { showError = false }
+        } message: {
+            Text(errorMessage ?? "Unknown error")
+        }
+        .onAppear {
+            // Pre-populate with stored values if available
+            let storedIP = UserDefaults.standard.string(forKey: "serverIP")
+            let storedPort = UserDefaults.standard.string(forKey: "port")
+            let storedPassword = UserDefaults.standard.string(forKey: "password")
+            
+            if let storedIP = storedIP, !storedIP.isEmpty {
+                serverIP = storedIP
+            }
+            
+            if let storedPort = storedPort, !storedPort.isEmpty {
+                port = storedPort
+            }
+            
+            if let storedPassword = storedPassword, !storedPassword.isEmpty {
+                password = storedPassword
+                // Attempt auto-login if we have stored credentials
+                loginToServer()
+            }
+        }
     }
 
     func loginToServer() {
-        // Placeholder for login logic
-        // Save credentials to UserDefaults
-        UserDefaults.standard.set(serverIP, forKey: "serverIP")
-        UserDefaults.standard.set(port, forKey: "port")
-        UserDefaults.standard.set(password, forKey: "password")
-
-        // Make encrypted HTTP request
-        Networking.sendLoginRequest(serverIP: serverIP, port: port, password: password) { result in
-            switch result {
-            case .success(let success):
-                if success {
-                    DispatchQueue.main.async {
-                        appState.isAuthenticated = true
-                    }
+        guard !isLoading else { return }
+        
+        isLoading = true
+        errorMessage = nil
+        
+        // Update the network manager with current credentials
+        NetworkManager.shared.updateCredentials(serverIP: serverIP, port: port, password: password)
+        
+        // Make HTTP request
+        NetworkManager.shared.sendLoginRequest { result in
+            DispatchQueue.main.async {
+                isLoading = false
+                
+                switch result {
+                case .success:
+                    appState.isAuthenticated = true
+                    
+                case .failure(let error):
+                    errorMessage = error.errorDescription
+                    showError = true
                 }
-            case .failure(let error):
-                print("Login failed: \(error.localizedDescription)")
             }
         }
     }
@@ -133,6 +172,8 @@ struct CustomTextField: View {
                         )
                 )
                 .foregroundColor(.white)
+                .autocapitalization(.none)
+                .disableAutocorrection(true)
         }
     }
 }
@@ -158,11 +199,12 @@ struct CustomSecureField: View {
                         )
                 )
                 .foregroundColor(.white)
+                .autocapitalization(.none)
+                .disableAutocorrection(true)
         }
     }
 }
 
-// Preview for Xcode canvas
 #Preview {
     LoginPage()
         .environmentObject(AppState())
